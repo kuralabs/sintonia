@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Copyright (C) 2026 KuraLabs S.R.L. Apache License 2.0. -->
+  <rect width="512" height="512" rx="112" fill="#12151c"/>
+  <g fill="none" stroke="#4f8cff" stroke-linecap="round" stroke-width="28">
+    <path d="M196 128a86 86 0 0 1 120 0"/>
+    <path d="M160 92a136 136 0 0 1 192 0"/>
+  </g>
+  <rect x="104" y="196" width="304" height="204" rx="36" fill="none"
+        stroke="#e8eaf0" stroke-width="28"/>
+  <path d="M232 252v92l80-46z" fill="#4f8cff"/>
+</svg>

@@ -1,0 +1,420 @@
+/*
+ * Copyright (C) 2026 KuraLabs S.R.L.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+:root {
+    --bg: #0b0d12;
+    --pane: #12151c;
+    --pane-line: #1f2430;
+    --text: #e8eaf0;
+    --muted: #8a91a3;
+    --accent: #4f8cff;
+    --accent-soft: rgba(79, 140, 255, 0.16);
+    --ok: #3ccf91;
+    --warn: #f2b33d;
+    --bad: #ff5d6c;
+    --glass: rgba(10, 12, 16, 0.55);
+    --pane-width: 320px;
+    --radius: 12px;
+    color-scheme: dark;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    display: flex;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+button, select {
+    font: inherit;
+    color: inherit;
+}
+
+/* Player ---------------------------------------------------------------- */
+
+.player {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    background: #000;
+    overflow: hidden;
+    touch-action: pan-x;
+}
+
+.player video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    display: block;
+}
+
+.control {
+    position: absolute;
+    border: 0;
+    background: var(--glass);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: opacity 0.3s ease, background 0.2s ease;
+}
+
+.control:hover, .control:focus-visible {
+    background: rgba(30, 34, 44, 0.8);
+    outline: none;
+}
+
+.icon {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    opacity: 0.75;
+}
+
+.icon svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+}
+
+.fullscreen {
+    right: 16px;
+    bottom: 16px;
+}
+
+.pane-toggle {
+    right: 16px;
+    top: 16px;
+}
+
+/* Controls fade out while the mouse is still. */
+.player.idle .control, .player.idle {
+    cursor: none;
+}
+
+.player.idle .control {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.unmute {
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+}
+
+.unmute svg {
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+}
+
+.player.idle .unmute {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.banner {
+    position: absolute;
+    left: 24px;
+    top: 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+    background: var(--glass);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: var(--radius);
+    max-width: calc(100% - 120px);
+    animation: appear 0.15s ease-out;
+}
+
+.banner.fading {
+    opacity: 0;
+    transition: opacity 0.6s ease;
+}
+
+.banner-number {
+    font-size: 28px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.banner-name {
+    font-size: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    flex: none;
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    border-top-color: var(--text);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.message {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    text-align: center;
+    font-size: 20px;
+    color: var(--muted);
+    pointer-events: none;
+}
+
+.toast {
+    position: absolute;
+    left: 50%;
+    top: 24px;
+    /* translate, not transform: the appear animation uses transform. */
+    translate: -50% 0;
+    padding: 10px 16px;
+    background: var(--glass);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: var(--radius);
+    animation: appear 0.15s ease-out;
+}
+
+/* Pane ------------------------------------------------------------------ */
+
+.pane {
+    width: var(--pane-width);
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    background: var(--pane);
+    border-left: 1px solid var(--pane-line);
+    transition: margin-right 0.25s ease;
+}
+
+body.pane-collapsed .pane {
+    margin-right: calc(-1 * var(--pane-width));
+}
+
+.pane-header {
+    padding: 20px 20px 12px;
+    border-bottom: 1px solid var(--pane-line);
+}
+
+.pane-header h1 {
+    margin: 0 0 14px;
+    font-size: 18px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+}
+
+.tuner {
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.tuner select {
+    width: 100%;
+    padding: 9px 10px;
+    background: var(--bg);
+    border: 1px solid var(--pane-line);
+    border-radius: 8px;
+    color: var(--text);
+}
+
+.channels {
+    flex: 1;
+    margin: 0;
+    padding: 8px;
+    list-style: none;
+    overflow-y: auto;
+}
+
+.channels button {
+    width: 100%;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.channels button:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.channels button[aria-current='true'] {
+    background: var(--accent-soft);
+}
+
+.channels .number {
+    min-width: 3.2em;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+}
+
+.channels .name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.channels .live {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    align-self: center;
+    border-radius: 50%;
+    background: var(--ok);
+    opacity: 0;
+}
+
+.channels .live.on {
+    opacity: 0.9;
+}
+
+.channels .live.warm {
+    opacity: 0.9;
+    background: var(--muted);
+}
+
+.pane-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--pane-line);
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: var(--bg);
+    border: 1px solid var(--pane-line);
+}
+
+.chip::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+}
+
+.chip.locked::before {
+    background: var(--ok);
+}
+
+.chip.tuning::before {
+    background: var(--warn);
+}
+
+.chip.nolock::before, .chip.error::before {
+    background: var(--bad);
+}
+
+/* Phones in portrait: video on top, list below. */
+@media (max-width: 800px) and (orientation: portrait) {
+    body {
+        flex-direction: column;
+    }
+
+    .player {
+        flex: none;
+        aspect-ratio: 16 / 9;
+    }
+
+    .pane {
+        width: 100%;
+        flex: 1;
+        min-height: 0;
+        border-left: 0;
+        border-top: 1px solid var(--pane-line);
+    }
+
+    body.pane-collapsed .pane {
+        margin-right: 0;
+        display: none;
+    }
+
+    body.pane-collapsed .player {
+        flex: 1;
+        aspect-ratio: auto;
+    }
+}
+
+/* Fullscreen: only the player is fullscreened, but be explicit. */
+.player:fullscreen {
+    width: 100vw;
+    height: 100vh;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes appear {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

@@ -1,0 +1,177 @@
+# Copyright (C) 2026 KuraLabs S.R.L.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+Turn a ``dvbv5-scan`` channel file into Sintonía ``[[channels]]`` entries.
+"""
+
+import re
+
+# ISDB-T service_id bits 4-3 give the service type; 0b11 is a partial
+# reception (one-seg) service.
+ONESEG_MASK = 0x18
+ONESEG_NAME = re.compile(r'one[ -]?seg|1[ -]?seg', re.IGNORECASE)
+
+DOTTED_NUMBER = re.compile(r'^\s*(\d+)\.(\d+)\b')
+LEADING_NUMBER = re.compile(r'^\s*(\d+)\b')
+NAMED_NUMBER = re.compile(r'\b(?:canal|ch\.?|channel)\s*(\d+)\b',
+                          re.IGNORECASE)
+
+
+def parse(text):
+    """
+    Parse a dvbv5 channel file.
+
+    :param str text: File contents.
+
+    :return: One dict per entry, with ``name`` plus the file's keys.
+    :rtype: list
+    """
+    entries = []
+    current = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        if line.startswith('[') and line.endswith(']'):
+            current = {'name': line[1:-1].strip()}
+            entries.append(current)
+        elif current is not None and '=' in line:
+            key, value = (part.strip() for part in line.split('=', 1))
+            current[key] = value
+    return entries
+
+
+def is_oneseg(entry):
+    """
+    :param dict entry: A parsed entry.
+
+    :return: Whether it is a one-seg (low resolution, mobile) service.
+    :rtype: bool
+    """
+    service_id = int(entry.get('SERVICE_ID', 0))
+    return (service_id & ONESEG_MASK == ONESEG_MASK
+            or bool(ONESEG_NAME.search(entry['name'])))
+
+
+def _major(name):
+    """
+    The channel number a service name suggests.
+
+    :param str name: Service name.
+
+    :return: ``(major, minor)``, minor being ``None`` when only the major
+     number appears, or ``None`` when the name has no number.
+    :rtype: tuple or None
+    """
+    if match := DOTTED_NUMBER.match(name):
+        return int(match[1]), match[2]
+    for pattern in (LEADING_NUMBER, NAMED_NUMBER):
+        if match := pattern.search(name):
+            return int(match[1]), None
+    return None
+
+
+def to_channels(entries, include_oneseg=False):
+    """
+    Convert parsed entries into channel configurations.
+
+    Channel numbers come from the service names (``'15-UCR HD'`` becomes
+    ``15.1``); services without one get the next free whole number.
+
+    :param list entries: Output of ``parse()``.
+    :param bool include_oneseg: Keep one-seg services.
+
+    :return: Channel dicts in ``[[channels]]`` format, in file order.
+    :rtype: list
+    """
+    services = [
+        entry for entry in entries
+        if 'SERVICE_ID' in entry and 'FREQUENCY' in entry
+        and (include_oneseg or not is_oneseg(entry))
+    ]
+    used = set()
+    numbered = []
+    for entry in services:
+        suggestion = _major(entry['name'])
+        number = None
+        if suggestion is not None:
+            major, minor = suggestion
+            if minor is not None and f'{major}.{minor}' not in used:
+                number = f'{major}.{minor}'
+            else:
+                minor = 1
+                while f'{major}.{minor}' in used:
+                    minor += 1
+                number = f'{major}.{minor}'
+            used.add(number)
+        numbered.append([entry, number])
+
+    free = 1
+    for item in numbered:
+        if item[1] is None:
+            while str(free) in used:
+                free += 1
+            item[1] = str(free)
+            used.add(item[1])
+
+    channels = []
+    for entry, number in numbered:
+        channel = {
+            'number': number,
+            'name': entry['name'],
+            'frequency': int(entry['FREQUENCY']),
+            'service_id': int(entry['SERVICE_ID']),
+        }
+        bandwidth = int(entry.get('BANDWIDTH_HZ', 6000000))
+        if bandwidth != 6000000:
+            channel['bandwidth'] = bandwidth
+        channels.append(channel)
+    return channels
+
+
+def _toml_string(value):
+    """
+    :param str value: Any string.
+
+    :return: A TOML string: literal (single quotes) when possible.
+    :rtype: str
+    """
+    if "'" not in value and '\n' not in value:
+        return f"'{value}'"
+    escaped = value.replace('\\', '\\\\').replace('"', '\\"')
+    return '"' + escaped.replace('\n', '\\n') + '"'
+
+
+def to_toml(channels):
+    """
+    Render channels as TOML ``[[channels]]`` tables.
+
+    :param list channels: Output of ``to_channels()``.
+
+    :return: TOML text.
+    :rtype: str
+    """
+    lines = [
+        '# Generated by "sintonia import". Review the channel numbers:',
+        '# they are guessed from the service names.',
+    ]
+    for channel in channels:
+        lines.append('')
+        lines.append('[[channels]]')
+        for key, value in channel.items():
+            if isinstance(value, str):
+                value = _toml_string(value)
+            lines.append(f'{key} = {value}')
+    return '\n'.join(lines) + '\n'

@@ -27,7 +27,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-import httpx
+import httpx2 as httpx
 
 log = logging.getLogger(__name__)
 

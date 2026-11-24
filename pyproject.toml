@@ -16,7 +16,7 @@ dependencies = [
     "uvicorn>=0.54",
     "ferberus>=1.0.1",
     "objns>=1.1",
-    "httpx>=0.28",
+    "httpx2>=2.16",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

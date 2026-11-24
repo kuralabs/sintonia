@@ -1,0 +1,71 @@
+<!doctype html>
+<!--
+  Copyright (C) 2026 KuraLabs S.R.L.
+  Licensed under the Apache License, Version 2.0. See LICENSE.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0b0d12">
+    <title>Sintonía</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main class="player" id="player">
+        <video id="video" autoplay playsinline muted></video>
+
+        <div class="banner" id="banner" hidden>
+            <span class="banner-number" id="banner-number"></span>
+            <span class="banner-name" id="banner-name"></span>
+            <span class="spinner" id="spinner" hidden></span>
+        </div>
+
+        <div class="message" id="message" hidden></div>
+        <div class="toast" id="toast" hidden></div>
+
+        <button class="unmute control" id="unmute" type="button" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 9v6h4l5 4V5L8 9H4zm12.5 3l2.8-2.8-1.1-1.1-2.8
+                         2.8-2.8-2.8-1.1 1.1 2.8 2.8-2.8 2.8 1.1 1.1
+                         2.8-2.8 2.8 2.8 1.1-1.1z"/>
+            </svg>
+            <span data-i18n="unmute">Tap to turn the sound on</span>
+        </button>
+
+        <button class="icon control fullscreen" id="fullscreen" type="button"
+                data-i18n-label="fullscreen">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4
+                         v-6zm14 0h2v6h-6v-2h4v-4z"/>
+            </svg>
+        </button>
+
+        <button class="icon control pane-toggle" id="pane-toggle"
+                type="button" data-i18n-label="channels">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
+            </svg>
+        </button>
+    </main>
+
+    <aside class="pane" id="pane">
+        <header class="pane-header">
+            <h1>Sintonía</h1>
+            <label class="tuner">
+                <span data-i18n="tuner">Tuner</span>
+                <select id="tuner">
+                    <option value="auto" data-i18n="auto">Automatic</option>
+                </select>
+            </label>
+        </header>
+        <ol class="channels" id="channels"></ol>
+        <footer class="pane-footer" id="tuners"></footer>
+    </aside>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
