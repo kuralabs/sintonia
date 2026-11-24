@@ -213,17 +213,14 @@ class MediaMTX:
         :return: Whether the path became ready in time.
         :rtype: bool
         """
+        # Polls the list: asking for a path that does not exist yet makes
+        # MediaMTX log an error each time.
         deadline = asyncio.get_running_loop().time() + timeout
         while asyncio.get_running_loop().time() < deadline:
             try:
-                response = await self._client.get(
-                    f'{self.api_url}/v3/paths/get/{path}'
-                )
-                if response.status_code == 200 and response.json().get(
-                    'ready'
-                ):
+                if (await self.paths()).get(path, {}).get('ready'):
                     return True
-            except httpx.TransportError:
+            except MediaMTXError:
                 pass
             await asyncio.sleep(0.05)
         return False

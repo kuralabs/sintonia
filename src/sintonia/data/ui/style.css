@@ -134,6 +134,7 @@ button, select {
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
+    white-space: nowrap;
 }
 
 .unmute svg {
@@ -390,6 +391,27 @@ body.pane-collapsed .pane {
     body.pane-collapsed .player {
         flex: 1;
         aspect-ratio: auto;
+    }
+
+    .banner {
+        left: 12px;
+        top: 12px;
+        gap: 10px;
+        padding: 8px 12px;
+    }
+
+    .banner-number {
+        font-size: 20px;
+    }
+
+    .banner-name {
+        font-size: 15px;
+    }
+
+    .unmute {
+        bottom: 12px;
+        padding: 8px 12px;
+        font-size: 14px;
     }
 }
 

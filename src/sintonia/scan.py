@@ -23,7 +23,7 @@ import re
 ONESEG_MASK = 0x18
 ONESEG_NAME = re.compile(r'one[ -]?seg|1[ -]?seg', re.IGNORECASE)
 
-DOTTED_NUMBER = re.compile(r'^\s*(\d+)\.(\d+)\b')
+DOTTED_NUMBER = re.compile(r'\b(\d+)\.(\d+)\b')
 LEADING_NUMBER = re.compile(r'^\s*(\d+)\b')
 NAMED_NUMBER = re.compile(r'\b(?:canal|ch\.?|channel)\s*(\d+)\b',
                           re.IGNORECASE)
@@ -75,11 +75,28 @@ def _major(name):
      number appears, or ``None`` when the name has no number.
     :rtype: tuple or None
     """
-    if match := DOTTED_NUMBER.match(name):
+    if match := DOTTED_NUMBER.search(name):
         return int(match[1]), match[2]
     for pattern in (LEADING_NUMBER, NAMED_NUMBER):
         if match := pattern.search(name):
             return int(match[1]), None
+    return None
+
+
+def rf_channel(frequency):
+    """
+    The 6 MHz (Americas/Japan ISDB-T) channel number of a frequency.
+
+    :param int frequency: Centre frequency in Hz.
+
+    :return: The VHF-high (7-13) or UHF (14-69) channel, or ``None``.
+    :rtype: int or None
+    """
+    for first, base, last in ((7, 177142857, 13), (14, 473142857, 69)):
+        channel = first + round((frequency - base) / 6e6)
+        centre = base + (channel - first) * 6e6
+        if first <= channel <= last and abs(frequency - centre) < 1e6:
+            return channel
     return None
 
 
@@ -88,23 +105,36 @@ def to_channels(entries, include_oneseg=False):
     Convert parsed entries into channel configurations.
 
     Channel numbers come from the service names (``'15-UCR HD'`` becomes
-    ``15.1``); services without one get the next free whole number.
+    ``15.1``); otherwise from the RF channel (629.142857 MHz is UHF 40, so
+    ``40.1``); otherwise the next free whole number.
 
     :param list entries: Output of ``parse()``.
     :param bool include_oneseg: Keep one-seg services.
 
-    :return: Channel dicts in ``[[channels]]`` format, in file order.
+    :return: Channel dicts in ``[[channels]]`` format, sorted by number
+     (Up/Down follows this order).
     :rtype: list
     """
-    services = [
-        entry for entry in entries
-        if 'SERVICE_ID' in entry and 'FREQUENCY' in entry
-        and (include_oneseg or not is_oneseg(entry))
-    ]
+    services = []
+    seen = set()
+    for entry in entries:
+        if 'SERVICE_ID' not in entry or 'FREQUENCY' not in entry:
+            continue
+        if not include_oneseg and is_oneseg(entry):
+            continue
+        # The same service twice, e.g. when scan files are concatenated.
+        key = (int(entry['FREQUENCY']), int(entry['SERVICE_ID']))
+        if key in seen:
+            continue
+        seen.add(key)
+        services.append(entry)
     used = set()
     numbered = []
     for entry in services:
         suggestion = _major(entry['name'])
+        if suggestion is None:
+            channel = rf_channel(int(entry['FREQUENCY']))
+            suggestion = (channel, None) if channel else None
         number = None
         if suggestion is not None:
             major, minor = suggestion
@@ -138,7 +168,17 @@ def to_channels(entries, include_oneseg=False):
         if bandwidth != 6000000:
             channel['bandwidth'] = bandwidth
         channels.append(channel)
-    return channels
+    return sorted(channels, key=lambda c: _number_key(c['number']))
+
+
+def _number_key(number):
+    """
+    :param str number: Channel number such as ``'38.02'``.
+
+    :return: A key that sorts channel numbers numerically.
+    :rtype: tuple
+    """
+    return tuple(int(part) for part in number.split('.'))
 
 
 def _toml_string(value):

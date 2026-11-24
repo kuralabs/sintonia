@@ -1,0 +1,92 @@
+# Sintonía example configuration: Costa Rica (ISDB-Tb), Gran Área
+# Metropolitana, as received during development in November 2026.
+#
+# Everything except [[channels]] is optional; the values shown are the
+# defaults unless noted. Generate your own channel list with:
+#
+#   dvbv5-scan -o channels.conf scan-table.conf
+#   sintonia import channels.conf
+#
+# Channel numbers for services that do not carry one in their name are
+# derived from the RF channel (Telefides and Teleuno are on UHF 40).
+
+[server]
+host = '0.0.0.0'
+port = 8080
+
+[tuners]
+# Empty: every /dev/dvb/adapterN present at start-up.
+adapters = []
+prewarm = true
+
+[transcode]
+hwaccel = 'nvidia'
+# NVIDIA device index. Run the container with --gpus all and choose the
+# GPU here: a container given a single GPU other than GPU 0 cannot use
+# NVENC.
+gpu = 0
+output = '1080p60'
+video_bitrate = '8M'
+# Costa Rican channels differ by more than 10 LU in loudness.
+audio_normalize = true
+
+
+[[channels]]
+number = '3.1'
+name = 'CANAL 3'
+frequency = 491142857
+service_id = 3744
+
+[[channels]]
+number = '4.1'
+name = 'Ch 4 HD'
+frequency = 521142857
+service_id = 19233
+
+[[channels]]
+number = '6.1'
+name = 'CANAL 6 HD'
+frequency = 521142857
+service_id = 19232
+
+[[channels]]
+number = '15.1'
+name = '15-UCR HD'
+frequency = 479142857
+service_id = 32
+
+[[channels]]
+number = '15.2'
+name = '15-UCR SD'
+frequency = 479142857
+service_id = 33
+
+[[channels]]
+number = '38.1'
+name = 'OPA'
+frequency = 617142857
+service_id = 1792
+
+[[channels]]
+number = '38.02'
+name = '38.02 OPA'
+frequency = 617142857
+service_id = 1793
+
+[[channels]]
+number = '40.1'
+name = 'Telefides'
+frequency = 629142857
+service_id = 53920
+
+[[channels]]
+number = '40.2'
+name = 'Teleuno'
+frequency = 629142857
+service_id = 53921
+
+[[channels]]
+number = '50.31'
+name = 'BETHEL 50.31'
+frequency = 689142857
+service_id = 528

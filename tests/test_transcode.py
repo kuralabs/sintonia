@@ -95,6 +95,15 @@ def test_cpu_has_no_hwaccel():
     assert '-hwaccel' not in build(hwaccel='none')
 
 
+def test_probe():
+    argv = build()
+    assert option(argv, '-analyzeduration') == '500K'
+    config = validate({'channels': [CHANNEL]})
+    thorough = command(config.transcode, 19232, 0, URL, thorough=True)
+    assert option(thorough, '-analyzeduration') == '3M'
+    assert option(thorough, '-probesize') == '8M'
+
+
 def test_audio_track_index():
     config = validate({'channels': [CHANNEL]})
     argv = command(config.transcode, 53921, 2, URL)

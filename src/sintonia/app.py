@@ -130,6 +130,7 @@ async def watch_endpoint(request):
             body['channel'], body['tuner'],
         )
     except StreamError as e:
+        log.warning('watch %s: %s', body['channel'], e)
         return error(str(e), e.status)
     return JSONResponse({'path': path, 'whep': f'/whep/{path}'})
 

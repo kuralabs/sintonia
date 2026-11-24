@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+
 import pytest
 from objns import Namespace
 
 from sintonia.streams import (
+    SETTLE_CLEAN,
+    SETTLE_MAX,
     StreamError,
+    Tuner,
     choose_tuner,
     neighbours,
     path_name,
@@ -69,6 +74,13 @@ def test_prefers_idle_tuner():
     assert choose_tuner([busy, idle], MUX_B) == (idle, True)
 
 
+def test_prefers_really_idle_tuner():
+    # No streams yet, but already tuning (reserved by pre-warming).
+    reserved = FakeTuner(0, MUX_A, 'tuning')
+    idle = FakeTuner(1)
+    assert choose_tuner([reserved, idle], MUX_B) == (idle, True)
+
+
 def test_evicts_prewarm_before_viewers():
     watched = FakeTuner(0, MUX_A, 'locked', [FakeStream()])
     warm = FakeTuner(1, MUX_B, 'locked', [FakeStream(prewarm=True)])
@@ -110,3 +122,36 @@ def test_neighbours(number, expected):
 def test_neighbours_small_lists():
     assert neighbours(CHANNELS[:1], '4.1') == []
     assert neighbours(CHANNELS[:2], '4.1') == ['6.1']
+
+
+def packets(count, tei=False):
+    packet = bytes([0x47, 0x80 if tei else 0x00, 0x11, 0x10]) + bytes(184)
+    return packet * count
+
+
+async def test_tuner_settles_on_clean_data():
+    tuner = Tuner(9)
+    now = asyncio.get_running_loop().time()
+    tuner._locked_at = now
+
+    assert not tuner._settle(packets(10, tei=True))
+    assert not tuner._settle(packets(10))  # clean, but only just
+    tuner._clean_since -= SETTLE_CLEAN  # ...and stays clean long enough
+    assert tuner._settle(packets(10))
+    assert tuner.settled
+
+
+async def test_tuner_corruption_resets_clean_time():
+    tuner = Tuner(9)
+    tuner._locked_at = asyncio.get_running_loop().time()
+    tuner._settle(packets(10))
+    tuner._clean_since -= SETTLE_CLEAN
+    # One corrupt packet among clean ones starts the wait again.
+    assert not tuner._settle(packets(5) + packets(1, tei=True) + packets(5))
+    assert tuner._clean_since is None
+
+
+async def test_tuner_settles_after_timeout_anyway():
+    tuner = Tuner(9)
+    tuner._locked_at = asyncio.get_running_loop().time() - SETTLE_MAX
+    assert tuner._settle(packets(10, tei=True))

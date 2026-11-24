@@ -200,8 +200,8 @@ function renderServerState() {
     footer.replaceChildren(...tuners.map((tuner) => {
         const chip = document.createElement('span');
         chip.className = `chip ${tuner.state}`;
-        chip.textContent = `${tuner.adapter}`
-            + (tuner.channels.length ? ` ${tuner.channels.join(' ')}` : '');
+        chip.textContent = `T${tuner.adapter}`
+            + (tuner.channels.length ? ` · ${tuner.channels.join(' ')}` : '');
         chip.title = describe(tuner);
         return chip;
     }));
@@ -286,6 +286,8 @@ async function tune(channel) {
     } catch (error) {
         if (generation === state.generation) {
             $('spinner').hidden = true;
+            // Do not leave the previous channel's picture under the error.
+            video.srcObject = null;
             showMessage(String(error.message || error));
         }
     }

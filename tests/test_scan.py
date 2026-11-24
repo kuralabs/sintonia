@@ -15,8 +15,16 @@
 import tomllib
 from pathlib import Path
 
+import pytest
+
 from sintonia.config import validate
-from sintonia.scan import is_oneseg, parse, to_channels, to_toml
+from sintonia.scan import (
+    is_oneseg,
+    parse,
+    rf_channel,
+    to_channels,
+    to_toml,
+)
 
 SAMPLE = (Path(__file__).parent / 'data' / 'dvbv5-scan.conf').read_text()
 
@@ -58,7 +66,7 @@ def test_to_channels_with_oneseg():
     assert numbers == ['15.1', '15.2', '15.3', '38.1', '38.02', '38.2']
 
 
-def test_unnumbered_services():
+def test_numbers_from_rf_channel():
     entries = [
         {'name': 'Telefides', 'SERVICE_ID': '53920',
          'FREQUENCY': '629142857'},
@@ -66,8 +74,26 @@ def test_unnumbered_services():
          'FREQUENCY': '521142857'},
         {'name': 'Teleuno', 'SERVICE_ID': '53921',
          'FREQUENCY': '629142857'},
+        {'name': 'BETHEL 50.31', 'SERVICE_ID': '528',
+         'FREQUENCY': '689142857'},
+        {'name': 'Odd', 'SERVICE_ID': '1', 'FREQUENCY': '100000000'},
     ]
-    assert [c['number'] for c in to_channels(entries)] == ['1', '6.1', '2']
+    assert [c['number'] for c in to_channels(entries)] == [
+        '1', '6.1', '40.1', '40.2', '50.31',
+    ]
+
+
+@pytest.mark.parametrize('frequency, channel', [
+    (177142857, 7),
+    (213142857, 13),
+    (473142857, 14),
+    (629142857, 40),
+    (689142857, 50),
+    (100000000, None),
+    (476000000, None),
+])
+def test_rf_channel(frequency, channel):
+    assert rf_channel(frequency) == channel
 
 
 def test_toml_round_trip():
@@ -78,4 +104,9 @@ def test_toml_round_trip():
     assert "name = '15-UCR HD'" in text
     assert 'name = "Bob\'s TV"' in text
     config = validate(tomllib.loads(text))
-    assert config.channels[-1].name == "Bob's TV"
+    assert "Bob's TV" in [channel.name for channel in config.channels]
+
+
+def test_duplicates_are_dropped():
+    entries = parse(SAMPLE)
+    assert to_channels(entries + entries) == to_channels(entries)

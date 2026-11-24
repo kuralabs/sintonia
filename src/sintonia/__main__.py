@@ -93,6 +93,19 @@ def check(args):
     )
 
 
+def health(args):
+    import urllib.request
+
+    try:
+        port = load(args.config).server.port
+        url = f'http://127.0.0.1:{port}/healthz'
+        with urllib.request.urlopen(url, timeout=5) as response:
+            ok = response.status == 200
+    except (ConfigError, OSError):
+        ok = False
+    raise SystemExit(0 if ok else 1)
+
+
 def import_(args):
     text = Path(args.file).read_text()
     channels = to_channels(parse(text), include_oneseg=args.oneseg)
@@ -121,6 +134,7 @@ def main(argv=None):
     for name, function, text in (
         ('serve', serve, 'run the server'),
         ('check', check, 'validate the configuration and the hardware'),
+        ('health', health, 'exit 0 if the local server is healthy'),
     ):
         sub = commands.add_parser(name, help=text)
         sub.add_argument(

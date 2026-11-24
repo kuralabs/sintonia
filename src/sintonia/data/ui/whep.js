@@ -83,14 +83,19 @@ export class WhepSession {
     }
 
     stop() {
-        if (this.pc) {
-            this.pc.close();
-            this.pc = null;
-        }
-        if (this.resource) {
-            // Tell the server right away, so the viewer count drops now.
-            fetch(this.resource, { method: 'DELETE' }).catch(() => {});
-            this.resource = null;
+        // Tell the server first, so the viewer count drops right away, and
+        // close the connection once it has answered: closing first makes
+        // the session vanish and the DELETE fail with 404.
+        const pc = this.pc;
+        const resource = this.resource;
+        this.pc = null;
+        this.resource = null;
+        const close = () => pc && pc.close();
+        if (resource) {
+            fetch(resource, { method: 'DELETE' }).catch(() => {})
+                .finally(close);
+        } else {
+            close();
         }
     }
 }

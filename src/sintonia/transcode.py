@@ -31,13 +31,14 @@ OUTPUTS = {
 # Short probe: enough to find the streams, including LATM audio, while
 # keeping channel changes fast.
 PROBE = ['-analyzeduration', '500K', '-probesize', '1M']
+# Longer probe, for weak multiplexes where the first packets after a tune
+# are corrupt and dropped (used for retries and pre-warming).
+PROBE_THOROUGH = ['-analyzeduration', '3M', '-probesize', '8M']
 
 # Fast-reacting loudness levelling; a longer window adds its lookahead to
 # every channel change.
 NORMALIZE = 'dynaudnorm=f=100:g=5'
 
-# libx264 does not have a 'baseline' alias that matches NVENC's behaviour
-# exactly, but the profile names are the same for every encoder we use.
 CPU_PRESET = 'veryfast'
 
 
@@ -134,7 +135,7 @@ def _video(transcode):
     )
 
 
-def command(transcode, service_id, audio, url):
+def command(transcode, service_id, audio, url, thorough=False):
     """
     Build the ffmpeg command for one service.
 
@@ -143,6 +144,8 @@ def command(transcode, service_id, audio, url):
     :param int service_id: MPEG-TS program number of the service.
     :param int audio: Index of the audio track within the service.
     :param str url: RTSP URL to publish to.
+    :param bool thorough: Probe the input longer (slower to start, but
+     works on weak signals).
 
     :return: The command, as an argument list.
     :rtype: list
@@ -157,7 +160,7 @@ def command(transcode, service_id, audio, url):
         # Drop packets the demodulator flagged as corrupt (they arrive for
         # about a second after every tune).
         '-fflags', '+discardcorrupt+genpts',
-        *PROBE,
+        *(PROBE_THOROUGH if thorough else PROBE),
         *hw_input,
         '-f', 'mpegts', '-i', 'pipe:0',
         '-map', f'0:p:{service_id}:v:0',
