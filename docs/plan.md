@@ -33,8 +33,8 @@ NVIDIA RTX 3060, but nothing in the design is specific to that card.
 
 ```
             ┌──────────── sintonia container (--network host) ─────────────┐
-/dev/dvb ──►│ dvbv5-zap per tuner: tune, full mux ─► dvrN                  │
-            │ Python reads dvrN once and fans the TS out to one ffmpeg     │
+/dev/dvb ──►│ Python tunes each tuner (DVB ioctls), reads its dvrN once    │
+            │ and fans the full-mux TS out to one ffmpeg                   │
             │ per watched channel (a dvr device has a single reader)       │
             │ ffmpeg (GPU N): decode → yadif_cuda (1080p60) → h264_nvenc;  │
             │   audio → aresample → dynaudnorm → stereo → Opus             │
@@ -48,9 +48,10 @@ NVIDIA RTX 3060, but nothing in the design is specific to that card.
   RTSP; browsers read from it with WHEP (RFC 9725, one HTTP POST of SDP).
   We write no WebRTC code. Python proxies the WHEP POST so the browser only
   talks to one origin; media flows directly from MediaMTX over UDP.
-- **Python orchestrates**: it supervises MediaMTX, the per-tuner
-  `dvbv5-zap` processes and the per-channel ffmpeg processes (asyncio
-  subprocesses, argument lists, never shell strings).
+- **Python orchestrates**: it tunes the frontends itself with the DVB
+  ioctls (lock and signal stats included; see `docs/spike.md` for why not
+  `dvbv5-zap`), and supervises MediaMTX and the per-channel ffmpeg
+  processes (asyncio subprocesses, argument lists, never shell strings).
 - **Mux sharing**: a tuner carries a whole multiplex; ffmpeg selects the
   channel by service ID. Viewers of different channels on one multiplex
   share a tuner; viewers of the same channel share one ffmpeg.
@@ -71,11 +72,11 @@ NVIDIA RTX 3060, but nothing in the design is specific to that card.
 | Config | TOML (`tomllib`) → ferberus (validate, normalise, defaults) → objns `Namespace` |
 | API validation | ferberus schemas for request bodies |
 | Live status | Server-Sent Events (`EventSource`) |
-| Tuning | `dvbv5-zap` (dvb-tools); lock/signal parsed from its stats |
+| Tuning | DVB ioctls from Python (`FE_SET_PROPERTY`, `FE_READ_STATUS`, `DTV_STAT_*`) |
 | Transcoding | jellyfin-ffmpeg 8.1+ (`jellyfin-ffmpeg8` from Jellyfin's apt repo) |
 | Delivery | MediaMTX, pinned release, checksum verified |
-| Video out | H.264 (NVENC), no B-frames, 1 s GOP, ~8 Mbit/s |
-| Audio out | Opus 48 kHz stereo 128 kbit/s, `dynaudnorm` levelling |
+| Video out | H.264 (NVENC), no B-frames, 0.5 s GOP, ~8 Mbit/s |
+| Audio out | Opus 48 kHz stereo 128 kbit/s, `dynaudnorm=f=100:g=5` levelling |
 | Frontend | Plain HTML, ES modules and CSS, no build step |
 | Tests | pytest, pytest-asyncio (no hardware needed) |
 
@@ -171,7 +172,7 @@ sintonia/
 ## Container and CI
 
 - Image: `ubuntu:26.04`, Jellyfin's apt repo for `jellyfin-ffmpeg8` only,
-  `dvb-tools`, Python venv with sintonia, MediaMTX pinned and checksum
+  Python venv with sintonia, MediaMTX pinned and checksum
   verified, `tini` as init, non-root user, `HEALTHCHECK` on `/healthz`,
   OCI labels (`org.opencontainers.image.source`, `licenses=Apache-2.0`).
   `amd64` only.
@@ -197,19 +198,17 @@ docker run -d --name sintonia --restart unless-stopped --init \
 
 | # | Deliverable | Done when |
 |---|---|---|
-| 0 | Spike: zap → ffmpeg (GPU) → MediaMTX → bare WHEP page, by hand | Plays on Chrome desktop and an Android phone; latency (< 1 s target) and zap time (1.5-3 s expected) measured; H.264 High vs Main decided |
+| 0 | Spike: zap → ffmpeg (GPU) → MediaMTX → bare WHEP page, by hand | **Done** except the Android check: see `docs/spike.md` |
 | 1 | Skeleton | pyproject, ruff, headers, CI green, Starlette serving `data/ui` |
 | 2 | Backend core | Config + `import`, one stream, WHEP proxy, SSE status |
 | 3 | UI | Layout, keys, swipe, fullscreen, banner, last channel, PWA |
-| 4 | Tuner pool | Auto/forced tuner, mux sharing + fan-out, idle shutdown, notices |
+| 4 | Tuner pool | Auto/forced tuner, mux sharing + fan-out, idle shutdown, notices, pre-tuned Up/Down neighbours |
 | 5 | Container + release | Dockerfile, GHCR workflows, weekly rebuild, README, v0.1.0 |
-| Later | — | Pre-tune neighbouring channels for instant zapping; EIT "now playing"; audio track choice; logos |
+| Later | — | EIT "now playing"; audio track choice in the UI; logos |
 
 ## Open items
 
 - Teletica 7.1 is not received yet; its physical channel is unknown.
-- Zap time includes ffmpeg's stream probing; channel PIDs from the config
-  may let us shorten it (measure in phase 0).
 - GPU 1 is shared with another GPU workload on the host; NVENC/NVDEC are
   separate engines, but a very large job could exhaust VRAM (~1 GB is
   enough for four streams).
