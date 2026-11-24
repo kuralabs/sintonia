@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sintonia"
+dynamic = ["version"]
+description = "Simple, watch-TV-focused web app for live over-the-air TV"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "KuraLabs S.R.L." }]
+requires-python = ">=3.12"
+dependencies = [
+    "starlette>=1.10",
+    "uvicorn>=0.54",
+    "ferberus>=1.0.1",
+    "objns>=1.1",
+    "httpx>=0.28",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Multimedia :: Video",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=9",
+    "pytest-asyncio>=1.5",
+]
+lint = [
+    "ruff>=0.17",
+]
+
+[project.scripts]
+sintonia = "sintonia.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/kuralabs/sintonia"
+Issues = "https://github.com/kuralabs/sintonia/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "sintonia.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sintonia = ["data/**/*"]
+
+[tool.ruff]
+line-length = 79
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
