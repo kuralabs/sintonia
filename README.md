@@ -89,10 +89,12 @@ GPU 0 (`--gpus '"device=0"'` works) and set `gpu = 1` here.
 | Fullscreen | F, double-click, or the corner button | Corner button |
 | Show / hide the channel list | P, or the top-right button | Top-right button |
 | Mute | M | |
+| Signal details | I, or click the signal row | Tap the signal row |
 
-The tuner selector forces a tuner, which retunes it even if someone else
-is watching another multiplex on it (they are moved to another tuner).
-**Automatic** picks a tuner already on the right multiplex, or a free one.
+Tuners are chosen automatically: a tuner already on the right multiplex,
+or a free one, or one carrying only pre-warmed channels. The bottom of the
+channel list shows the signal quality of the channel being watched; open
+it for every tuner's signal, C/N and share of corrupt packets.
 
 ## Development
 

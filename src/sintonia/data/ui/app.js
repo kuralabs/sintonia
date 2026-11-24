@@ -21,9 +21,10 @@ const TEXT = {
         unmute: 'Tap to turn the sound on',
         fullscreen: 'Fullscreen (F)',
         channels: 'Channels (P)',
-        tuner: 'Tuner',
-        auto: 'Automatic',
-        tunerN: (n) => `Tuner ${n}`,
+        details: 'Signal details (I)',
+        quality: ['No signal', 'Poor signal', 'Fair signal', 'Good signal',
+                  'Excellent signal'],
+        errors: 'errors',
         idle: 'idle',
         tuning: 'tuning',
         nolock: 'no signal',
@@ -37,9 +38,10 @@ const TEXT = {
         unmute: 'Toque para activar el sonido',
         fullscreen: 'Pantalla completa (F)',
         channels: 'Canales (P)',
-        tuner: 'Sintonizador',
-        auto: 'Automático',
-        tunerN: (n) => `Sintonizador ${n}`,
+        details: 'Detalles de la señal (I)',
+        quality: ['Sin señal', 'Señal mala', 'Señal regular', 'Señal buena',
+                  'Señal excelente'],
+        errors: 'errores',
         idle: 'libre',
         tuning: 'sintonizando',
         nolock: 'sin señal',
@@ -67,7 +69,6 @@ const video = $('video');
 const state = {
     channels: [],
     index: -1,
-    tuner: 'auto',
     session: null,
     generation: 0,
     server: { tuners: [], streams: [] },
@@ -185,26 +186,7 @@ function renderServerState() {
         live.classList.toggle('warm', Boolean(stream && stream.prewarm));
     }
 
-    const select = $('tuner');
-    for (const tuner of tuners) {
-        let option = select.querySelector(`option[value="${tuner.adapter}"]`);
-        if (!option) {
-            option = document.createElement('option');
-            option.value = tuner.adapter;
-            select.append(option);
-        }
-        option.textContent = `${T.tunerN(tuner.adapter)} · ${describe(tuner)}`;
-    }
-
-    const footer = $('tuners');
-    footer.replaceChildren(...tuners.map((tuner) => {
-        const chip = document.createElement('span');
-        chip.className = `chip ${tuner.state}`;
-        chip.textContent = `T${tuner.adapter}`
-            + (tuner.channels.length ? ` · ${tuner.channels.join(' ')}` : '');
-        chip.title = describe(tuner);
-        return chip;
-    }));
+    renderSignal(tuners, byNumber);
 
     // "No signal" when the current channel's tuner lost its lock.
     const current = state.channels[state.index];
@@ -215,6 +197,32 @@ function renderServerState() {
     } else if ($('message').textContent === T.noSignal) {
         showMessage('');
     }
+}
+
+/* Signal ---------------------------------------------------------------- */
+
+// Signal quality of a tuner, 0 (no signal) to 4, or null when unknown
+// (idle, still tuning). Corrupt packets matter most: they are what makes
+// the picture break up; a low C/N warns of a signal close to failing.
+function quality(tuner) {
+    if (!tuner || tuner.state === 'idle' || tuner.state === 'tuning') {
+        return null;
+    }
+    if (tuner.state !== 'locked') {
+        return 0;
+    }
+    const { errors, cnr_db: cnr } = tuner;
+    if (errors !== null && errors >= 0.05) {
+        return 1;
+    }
+    if ((errors !== null && errors > 0.001) || (cnr !== null && cnr < 10)) {
+        return 2;
+    }
+    return cnr !== null && cnr < 18 ? 3 : 4;
+}
+
+function percent(share) {
+    return `${(share * 100).toFixed(share && share < 0.1 ? 1 : 0)}%`;
 }
 
 function describe(tuner) {
@@ -228,7 +236,52 @@ function describe(tuner) {
     if (tuner.cnr_db !== null) {
         parts.push(`C/N ${tuner.cnr_db} dB`);
     }
-    return parts.join(', ') || (tuner.channels.join(', '));
+    if (tuner.errors !== null) {
+        parts.push(`${percent(tuner.errors)} ${T.errors}`);
+    }
+    return parts.join(' · ');
+}
+
+function renderSignal(tuners, byNumber) {
+    const current = state.channels[state.index];
+    const stream = current && byNumber.get(current.number);
+    const tuner = stream && tuners.find((t) => t.adapter === stream.tuner);
+    const level = quality(tuner);
+    $('bars').dataset.level = level === null ? '' : level;
+    $('signal-text').textContent = level === null
+        ? (tuner ? T[tuner.state] : '') : T.quality[level];
+
+    // Details: every tuner, what it carries and how well it receives.
+    $('tuners').replaceChildren(...tuners.map((t) => {
+        const row = document.createElement('li');
+        row.className = t.state;
+        const name = document.createElement('b');
+        name.textContent = `T${t.adapter}`;
+        const channels = document.createElement('span');
+        channels.className = 'carries';
+        for (const number of t.channels) {
+            const item = document.createElement('span');
+            item.textContent = number;
+            if (current && number === current.number) {
+                item.className = 'watching';
+            } else if (byNumber.get(number)?.prewarm) {
+                item.className = 'warm';
+            }
+            channels.append(item);
+        }
+        const stats = document.createElement('span');
+        stats.className = 'stats';
+        stats.textContent = describe(t);
+        row.append(name, channels, stats);
+        return row;
+    }));
+}
+
+function toggleDetails(open) {
+    const details = $('tuners');
+    details.hidden = open === undefined ? !details.hidden : !open;
+    $('signal').setAttribute('aria-expanded', String(!details.hidden));
+    save('details', !details.hidden);
 }
 
 /* Tuning ---------------------------------------------------------------- */
@@ -244,6 +297,7 @@ function select(index) {
     const channel = state.channels[state.index];
     save('channel', channel.number);
     markCurrent();
+    renderServerState();
     showBanner(channel, true);
     showMessage('');
     clearTimeout(tuneTimer);
@@ -260,9 +314,7 @@ async function tune(channel) {
         const response = await fetch('/api/watch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                channel: channel.number, tuner: state.tuner,
-            }),
+            body: JSON.stringify({ channel: channel.number }),
         });
         const body = await response.json();
         if (generation !== state.generation) {
@@ -366,8 +418,7 @@ document.addEventListener('visibilitychange', () => {
 /* Input ----------------------------------------------------------------- */
 
 document.addEventListener('keydown', (event) => {
-    if (event.target.tagName === 'SELECT' || event.altKey
-            || event.ctrlKey || event.metaKey) {
+    if (event.altKey || event.ctrlKey || event.metaKey) {
         return;
     }
     let handled = true;
@@ -389,6 +440,10 @@ document.addEventListener('keydown', (event) => {
         case 'm':
         case 'M':
             video.muted = !video.muted;
+            break;
+        case 'i':
+        case 'I':
+            toggleDetails();
             break;
         default:
             handled = false;
@@ -438,12 +493,7 @@ player.addEventListener('dblclick', (event) => {
 $('unmute').addEventListener('click', unmute);
 $('fullscreen').addEventListener('click', toggleFullscreen);
 $('pane-toggle').addEventListener('click', togglePane);
-$('tuner').addEventListener('change', (event) => {
-    const value = event.target.value;
-    state.tuner = value === 'auto' ? 'auto' : Number(value);
-    save('tuner', state.tuner);
-    select(state.index);
-});
+$('signal').addEventListener('click', () => toggleDetails());
 
 /* Server events --------------------------------------------------------- */
 
@@ -462,8 +512,6 @@ function connectEvents() {
         if (current && notice.channel === current.number) {
             showToast(notice.message);
             // Our tuner was taken: get the channel back on another one.
-            state.tuner = 'auto';
-            $('tuner').value = 'auto';
             setTimeout(() => select(state.index), 500);
         }
     });
@@ -479,6 +527,12 @@ function connectEvents() {
 
 async function start() {
     translate();
+    try {
+        // The tuner selector is gone: forget a tuner chosen with it.
+        localStorage.removeItem(`${STORE}tuner`);
+    } catch {
+        // Storage disabled.
+    }
     if (load('paneCollapsed', false)) {
         document.body.classList.add('pane-collapsed');
     }
@@ -494,15 +548,7 @@ async function start() {
     state.channels = config.channels;
     renderChannels();
 
-    const tuner = load('tuner', 'auto');
-    state.tuner = config.tuners.includes(tuner) ? tuner : 'auto';
-    for (const adapter of config.tuners) {
-        const option = document.createElement('option');
-        option.value = adapter;
-        option.textContent = T.tunerN(adapter);
-        $('tuner').append(option);
-    }
-    $('tuner').value = String(state.tuner);
+    toggleDetails(load('details', false));
 
     connectEvents();
     wake();

@@ -3,8 +3,8 @@
 Sintonía (`sintonia`) is a simple, watch-TV-focused web app for live
 over-the-air TV. It runs as one Docker container that is given the DVB
 tuners and a GPU. Open `http://host:port` and the last channel you watched
-plays on the left, with a collapsible pane on the right holding a tuner
-select and the channel list. Up/Down changes channel.
+plays on the left, with a collapsible pane on the right holding the
+channel list. Up/Down changes channel.
 
 Scope: LAN only, no authentication. Clients: Chrome desktop and Chrome on
 Android. Developed on a TBS6814 quad ISDB-Tb card (Costa Rica) with an
@@ -58,10 +58,12 @@ NVIDIA RTX 3060, but nothing in the design is specific to that card.
 - **Idle shutdown** uses MediaMTX's control API (readers per path), so no
   client heartbeats: about 30 s without readers stops that channel's
   ffmpeg, and the tuner when nothing else uses it.
-- **Tuner policy**: "Auto" reuses a tuner already on the right multiplex,
-  else takes a free one. A tuner chosen in the dropdown is used even if it
-  is on another multiplex for another viewer (last click wins); that viewer
-  is retuned and shown a notice.
+- **Tuner policy**: automatic. A tuner already on the right multiplex is
+  reused, else a free one is taken, else one carrying only pre-warmed
+  channels, else the least recently viewed. The API can still force a
+  tuner (`POST /api/watch` with `tuner`), even if it is on another
+  multiplex for another viewer (last request wins); that viewer is retuned
+  and shown a notice. The UI no longer offers this: it stays for watching.
 
 ## Technologies
 
@@ -118,9 +120,12 @@ stays for watching.
 
 ## UI
 
-- Video area on the left; collapsible right pane (state remembered) with a
-  tuner select (`Auto`, `Tuner 0-3` with lock/signal badges) and the channel
-  list (number + name, current highlighted).
+- Video area on the left; collapsible right pane (state remembered) with
+  the channel list (number + name, current highlighted) and, at the bottom,
+  the signal quality of the channel being watched (bars, from the share of
+  corrupt packets and the C/N). Tapping it (or I) shows every tuner's
+  channels, signal, C/N and corrupt packets: for diagnosis, hidden by
+  default.
 - On the video: a translucent fullscreen icon that fades after ~2 s of no
   mouse movement; a TV-style banner (`6.1 Canal 6 HD`) with a spinner while
   tuning; "No signal" when lock is lost.

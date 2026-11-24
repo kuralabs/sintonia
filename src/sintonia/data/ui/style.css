@@ -240,26 +240,10 @@ body.pane-collapsed .pane {
 }
 
 .pane-header h1 {
-    margin: 0 0 14px;
+    margin: 0;
     font-size: 18px;
     font-weight: 650;
     letter-spacing: 0.01em;
-}
-
-.tuner {
-    display: grid;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--muted);
-}
-
-.tuner select {
-    width: 100%;
-    padding: 9px 10px;
-    background: var(--bg);
-    border: 1px solid var(--pane-line);
-    border-radius: 8px;
-    color: var(--text);
 }
 
 .channels {
@@ -325,26 +309,95 @@ body.pane-collapsed .pane {
 }
 
 .pane-footer {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 12px 16px 16px;
+    padding: 4px 8px 8px;
     border-top: 1px solid var(--pane-line);
     font-size: 12px;
     color: var(--muted);
 }
 
-.chip {
+/* Signal quality of the channel being watched; tap for details. */
+.signal {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.signal:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.signal-text {
+    flex: 1;
+    text-align: left;
+}
+
+.chevron {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    transition: transform 0.2s ease;
+}
+
+.signal[aria-expanded='true'] .chevron {
+    transform: rotate(180deg);
+}
+
+.bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 14px;
+}
+
+.bars i {
+    width: 4px;
+    border-radius: 1px;
+    background: var(--pane-line);
+}
+
+.bars i:nth-child(1) { height: 5px; }
+.bars i:nth-child(2) { height: 8px; }
+.bars i:nth-child(3) { height: 11px; }
+.bars i:nth-child(4) { height: 14px; }
+
+.bars[data-level='1'] i:nth-child(-n+1) { background: var(--bad); }
+.bars[data-level='2'] i:nth-child(-n+2) { background: var(--warn); }
+.bars[data-level='3'] i:nth-child(-n+3),
+.bars[data-level='4'] i { background: var(--ok); }
+
+/* Per-tuner details. */
+.tuners {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 4px 8px 4px;
+    list-style: none;
+    font-variant-numeric: tabular-nums;
+}
+
+.tuners li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 8px;
+}
+
+.tuners b {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 8px;
-    border-radius: 999px;
-    background: var(--bg);
-    border: 1px solid var(--pane-line);
+    font-weight: 600;
+    color: var(--text);
 }
 
-.chip::before {
+.tuners b::before {
     content: '';
     width: 7px;
     height: 7px;
@@ -352,16 +405,27 @@ body.pane-collapsed .pane {
     background: var(--muted);
 }
 
-.chip.locked::before {
-    background: var(--ok);
+.tuners .locked b::before { background: var(--ok); }
+.tuners .tuning b::before { background: var(--warn); }
+.tuners .nolock b::before, .tuners .error b::before { background: var(--bad); }
+
+.tuners .carries {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
-.chip.tuning::before {
-    background: var(--warn);
+.tuners .carries .watching {
+    color: var(--accent);
+    font-weight: 600;
 }
 
-.chip.nolock::before, .chip.error::before {
-    background: var(--bad);
+.tuners .carries .warm {
+    opacity: 0.6;
+}
+
+.tuners .stats {
+    grid-column: 2;
 }
 
 /* Phones in portrait: video on top, list below. */

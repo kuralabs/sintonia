@@ -55,15 +55,22 @@
     <aside class="pane" id="pane">
         <header class="pane-header">
             <h1>Sintonía</h1>
-            <label class="tuner">
-                <span data-i18n="tuner">Tuner</span>
-                <select id="tuner">
-                    <option value="auto" data-i18n="auto">Automatic</option>
-                </select>
-            </label>
         </header>
         <ol class="channels" id="channels"></ol>
-        <footer class="pane-footer" id="tuners"></footer>
+        <footer class="pane-footer">
+            <button class="signal" id="signal" type="button"
+                    aria-expanded="false" aria-controls="tuners"
+                    data-i18n-label="details">
+                <span class="bars" id="bars" aria-hidden="true">
+                    <i></i><i></i><i></i><i></i>
+                </span>
+                <span class="signal-text" id="signal-text"></span>
+                <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7 14l5-5 5 5z"/>
+                </svg>
+            </button>
+            <ul class="tuners" id="tuners" hidden></ul>
+        </footer>
     </aside>
 
     <script type="module" src="app.js"></script>
