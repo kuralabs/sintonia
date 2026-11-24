@@ -40,11 +40,13 @@ def test_nvidia_default():
 
     assert argv[0] == '/usr/lib/jellyfin-ffmpeg/ffmpeg'
     assert option(argv, '-hwaccel') == 'cuda'
-    assert option(argv, '-hwaccel_device') == '1'
+    assert option(argv, '-init_hw_device') == 'cuda=cu:1'
+    assert option(argv, '-filter_hw_device') == 'cu'
+    assert option(argv, '-hwaccel_device') == 'cu'
     assert option(argv, '-gpu') == '1'
     assert option(argv, '-c:v') == 'h264_nvenc'
     assert option(argv, '-vf') == (
-        'yadif_cuda=mode=send_field:parity=auto:deint=interlaced'
+        'hwupload,yadif_cuda=mode=send_field:parity=auto:deint=interlaced'
     )
     assert option(argv, '-g') == '30'
     assert option(argv, '-bf') == '0'
@@ -60,6 +62,7 @@ def test_nvidia_default():
 
 def test_hwaccel_flags_come_before_input():
     argv = build()
+    assert argv.index('-init_hw_device') < argv.index('-hwaccel')
     assert argv.index('-hwaccel') < argv.index('-i')
 
 
@@ -68,10 +71,10 @@ def test_without_normalize():
 
 
 @pytest.mark.parametrize('output, vf, gop', [
-    ('1080p30', 'yadif_cuda=mode=send_frame:parity=auto:deint=interlaced',
-     '15'),
-    ('720p60', 'yadif_cuda=mode=send_field:parity=auto:deint=interlaced'
-               ',scale_cuda=1280:720', '30'),
+    ('1080p30', 'hwupload,yadif_cuda=mode=send_frame:parity=auto'
+                ':deint=interlaced', '15'),
+    ('720p60', 'hwupload,yadif_cuda=mode=send_field:parity=auto'
+               ':deint=interlaced,scale_cuda=1280:720', '30'),
 ])
 def test_outputs(output, vf, gop):
     argv = build(output=output)

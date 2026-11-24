@@ -85,11 +85,16 @@ def _video(transcode):
     if hwaccel == 'nvidia':
         gpu = str(transcode.gpu)
         mode = 'send_field' if field_rate else 'send_frame'
-        vf = f'yadif_cuda=mode={mode}:parity=auto:deint=interlaced'
+        # hwupload passes CUDA frames through untouched, and uploads
+        # software frames: on a weak signal the decoder can run out of
+        # surfaces and fall back to software decoding mid-stream, which
+        # would otherwise make the CUDA filters fail and ffmpeg exit.
+        vf = f'hwupload,yadif_cuda=mode={mode}:parity=auto:deint=interlaced'
         if scale:
             vf += f',scale_cuda={width}:{height}'
         return (
-            ['-hwaccel', 'cuda', '-hwaccel_device', gpu,
+            ['-init_hw_device', f'cuda=cu:{gpu}', '-filter_hw_device', 'cu',
+             '-hwaccel', 'cuda', '-hwaccel_device', 'cu',
              '-hwaccel_output_format', 'cuda'],
             vf,
             ['-c:v', 'h264_nvenc', '-gpu', gpu, '-preset', 'p4',
