@@ -23,6 +23,7 @@ from sintonia.streams import (
     StreamError,
     Tuner,
     choose_tuner,
+    corrupt_packets,
     neighbours,
     path_name,
 )
@@ -149,6 +150,38 @@ async def test_tuner_corruption_resets_clean_time():
     # One corrupt packet among clean ones starts the wait again.
     assert not tuner._settle(packets(5) + packets(1, tei=True) + packets(5))
     assert tuner._clean_since is None
+
+
+def test_corrupt_packets():
+    assert corrupt_packets(packets(3) + packets(2, tei=True)) == 2
+    assert corrupt_packets(b'') == 0
+
+
+async def test_tuner_error_share():
+    tuner = Tuner(9)
+    assert tuner.take_errors() is None  # not settled yet
+    tuner.settled = True
+    tuner._packets, tuner._errors = 200, 5
+    assert tuner.take_errors() == 0.025
+    # Nothing delivered since: the stream stalled.
+    assert tuner.take_errors() == 1.0
+
+
+async def test_tuner_counts_errors_once_settled():
+    class Source:
+        def __init__(self, data):
+            self.data = data
+
+        def read(self):
+            return self.data
+
+    tuner = Tuner(9)
+    tuner.settled = True
+    tuner._ts = Source(packets(7) + packets(1, tei=True))
+    tuner._fan_out()
+    tuner._fan_out()
+    assert (tuner._packets, tuner._errors) == (16, 2)
+    assert tuner.snapshot()['errors'] is None  # until the next refresh
 
 
 async def test_tuner_settles_after_timeout_anyway():

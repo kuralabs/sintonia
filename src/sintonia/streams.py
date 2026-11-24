@@ -142,6 +142,23 @@ def neighbours(channels, number):
     return sorted(around, key=numbers.index)
 
 
+# Packet flag bytes without the transport error indicator, deleted by
+# bytes.translate() to count the corrupt packets that remain.
+_NO_TEI = bytes(range(0x80))
+NO_STATS = {'signal_dbm': None, 'cnr_db': None, 'errors': None}
+
+
+def corrupt_packets(data):
+    """
+    :param bytes data: Packet-aligned transport stream data.
+
+    :return: How many packets carry the transport error indicator.
+    :rtype: int
+    """
+    # Byte 1 of each packet carries the transport error indicator.
+    return len(data[1::dvb.TS_PACKET].translate(None, _NO_TEI))
+
+
 class Tuner:
     """
     One DVB adapter: a frontend and the transport stream it delivers.
@@ -153,12 +170,14 @@ class Tuner:
         self.adapter = adapter
         self.frequency = None
         self.state = 'idle'
-        self.stats = {'signal_dbm': None, 'cnr_db': None}
+        self.stats = dict(NO_STATS)
         self.streams = set()
         self.settled = False
         self._locked_at = 0.0
         self._clean_since = None
         self._nolock_reads = 0
+        self._packets = 0
+        self._errors = 0
         self._generation = 0
         self._frontend = dvb.Frontend(adapter)
         self._ts = None
@@ -214,6 +233,8 @@ class Tuner:
         self._locked_at = loop.time()
         self._clean_since = None
         self._nolock_reads = 0
+        self._packets = 0
+        self._errors = 0
         self._ts = dvb.TransportStream(self.adapter)
         self._ts.open()
         loop.add_reader(self._ts.fileno(), self._fan_out)
@@ -228,7 +249,7 @@ class Tuner:
         """
         self.frequency = frequency
         self.state = 'tuning'
-        self.stats = {'signal_dbm': None, 'cnr_db': None}
+        self.stats = dict(NO_STATS)
 
     def _fan_out(self):
         """
@@ -243,6 +264,8 @@ class Tuner:
             return
         if not self.settled and not self._settle(data):
             return
+        self._packets += len(data) // dvb.TS_PACKET
+        self._errors += corrupt_packets(data)
         for stream in self.streams:
             stream.feed(data)
 
@@ -256,8 +279,7 @@ class Tuner:
         :rtype: bool
         """
         now = asyncio.get_running_loop().time()
-        # Byte 1 of each packet carries the transport error indicator.
-        if any(flags & 0x80 for flags in data[1::dvb.TS_PACKET]):
+        if corrupt_packets(data):
             self._clean_since = None
         elif self._clean_since is None:
             self._clean_since = now
@@ -269,6 +291,21 @@ class Tuner:
                      now - self._locked_at, '' if clean else ' (timeout)')
         return self.settled
 
+    def take_errors(self):
+        """
+        The share of corrupt packets since the previous call, once the
+        demodulator has settled. A tuner that delivered nothing at all
+        meanwhile counts as fully corrupt: the stream stalled.
+
+        :return: 0 to 1, or ``None`` before the tuner settled.
+        :rtype: float or None
+        """
+        if not self.settled:
+            return None
+        packets, errors = self._packets, self._errors
+        self._packets = self._errors = 0
+        return round(errors / packets, 4) if packets else 1.0
+
     async def refresh(self):
         """
         Update lock state and signal statistics.
@@ -277,10 +314,11 @@ class Tuner:
             return
         try:
             status = await asyncio.to_thread(self._frontend.status)
-            self.stats = await asyncio.to_thread(self._frontend.stats)
+            stats = await asyncio.to_thread(self._frontend.stats)
         except OSError as e:
             log.warning('tuner %d status: %s', self.adapter, e)
             return
+        self.stats = {**stats, 'errors': self.take_errors()}
         if status & dvb.FE_HAS_LOCK:
             self._nolock_reads = 0
             self.state = 'locked'
@@ -304,7 +342,7 @@ class Tuner:
         self._frontend.close()
         self.frequency = None
         self.state = 'idle'
-        self.stats = {'signal_dbm': None, 'cnr_db': None}
+        self.stats = dict(NO_STATS)
 
     def snapshot(self):
         """
@@ -317,6 +355,7 @@ class Tuner:
             'frequency': self.frequency,
             'signal_dbm': self.stats['signal_dbm'],
             'cnr_db': self.stats['cnr_db'],
+            'errors': self.stats['errors'],
             'channels': sorted(s.channel.number for s in self.streams),
         }
 
