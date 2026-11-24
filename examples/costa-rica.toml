@@ -7,8 +7,9 @@
 #   dvbv5-scan -o channels.conf scan-table.conf
 #   sintonia import channels.conf
 #
-# Channel numbers for services that do not carry one in their name are
-# derived from the RF channel (Telefides and Teleuno are on UHF 40).
+# Channel numbers follow the virtual numbering a TV shows: the major
+# number broadcast by the network, and the service's index as the minor
+# number (so 'Ch 4 HD' is 6.2, a subchannel of Canal 6).
 
 [server]
 host = '0.0.0.0'
@@ -39,15 +40,45 @@ service_id = 3744
 
 [[channels]]
 number = '4.1'
-name = 'Ch 4 HD'
-frequency = 521142857
-service_id = 19233
+name = 'CANAL 4'
+frequency = 545142857
+service_id = 32000
+
+[[channels]]
+number = '5.1'
+name = 'Teleritmo'
+frequency = 671142857
+service_id = 640
 
 [[channels]]
 number = '6.1'
 name = 'CANAL 6 HD'
 frequency = 521142857
 service_id = 19232
+
+[[channels]]
+number = '6.2'
+name = 'Ch 4 HD'
+frequency = 521142857
+service_id = 19233
+
+[[channels]]
+number = '7.1'
+name = 'Teletica HD'
+frequency = 497142857
+service_id = 48352
+
+[[channels]]
+number = '9.1'
+name = 'CANAL 9'
+frequency = 623142857
+service_id = 64736
+
+[[channels]]
+number = '10.1'
+name = 'XperTv HD'
+frequency = 569142857
+service_id = 48384
 
 [[channels]]
 number = '15.1'
@@ -68,7 +99,7 @@ frequency = 617142857
 service_id = 1792
 
 [[channels]]
-number = '38.02'
+number = '38.2'
 name = '38.02 OPA'
 frequency = 617142857
 service_id = 1793
@@ -86,7 +117,7 @@ frequency = 629142857
 service_id = 53921
 
 [[channels]]
-number = '50.31'
-name = 'BETHEL 50.31'
+number = '50.1'
+name = 'BETHEL CR'
 frequency = 689142857
 service_id = 528
