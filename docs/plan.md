@@ -199,12 +199,19 @@ docker run -d --name sintonia --restart unless-stopped --init \
 | # | Deliverable | Done when |
 |---|---|---|
 | 0 | Spike: zap → ffmpeg (GPU) → MediaMTX → bare WHEP page, by hand | **Done** except the Android check: see `docs/spike.md` |
-| 1 | Skeleton | pyproject, ruff, headers, CI green, Starlette serving `data/ui` |
-| 2 | Backend core | Config + `import`, one stream, WHEP proxy, SSE status |
-| 3 | UI | Layout, keys, swipe, fullscreen, banner, last channel, PWA |
-| 4 | Tuner pool | Auto/forced tuner, mux sharing + fan-out, idle shutdown, notices, pre-tuned Up/Down neighbours |
-| 5 | Container + release | Dockerfile, GHCR workflows, weekly rebuild, README, v0.1.0 |
+| 1 | Skeleton | **Done** |
+| 2 | Backend core | **Done** |
+| 3 | UI | **Done**; Android to be tried on a real phone |
+| 4 | Tuner pool | **Done** |
+| 5 | Container + release | **Done** except tagging v0.1.0 |
 | Later | — | EIT "now playing"; audio track choice in the UI; logos |
+
+## Measured on hardware (end-to-end, container, headless Chrome)
+
+- First channel after opening the page (cold tune): ~5-6 s.
+- Up/Down onto a pre-warmed neighbour: 1.0-2.5 s, weak channels included.
+- After a lock the demodulator needs 1-4 s before packets are clean; the
+  stream is only handed to ffmpeg once it is (see `streams.Tuner`).
 
 ## Open items
 
