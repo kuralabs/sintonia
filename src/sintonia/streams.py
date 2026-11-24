@@ -159,6 +159,7 @@ class Tuner:
         self._locked_at = 0.0
         self._clean_since = None
         self._nolock_reads = 0
+        self._generation = 0
         self._frontend = dvb.Frontend(adapter)
         self._ts = None
 
@@ -179,10 +180,10 @@ class Tuner:
 
         :raises StreamError: If the frontend does not lock in time.
         """
+        self._generation += 1
+        generation = self._generation
         self._stop_reading()
-        self.frequency = frequency
-        self.state = 'tuning'
-        self.stats = {'signal_dbm': None, 'cnr_db': None}
+        self.reserve(frequency)
         try:
             self._frontend.open()
             self._frontend.tune(frequency, bandwidth)
@@ -194,6 +195,10 @@ class Tuner:
         deadline = loop.time() + timeout
         while True:
             status = await asyncio.to_thread(self._frontend.status)
+            if generation != self._generation:
+                raise StreamError(
+                    f'tuner {self.adapter} was retuned meanwhile', 409,
+                )
             if status & dvb.FE_HAS_LOCK:
                 break
             if loop.time() > deadline:
@@ -213,6 +218,17 @@ class Tuner:
         self._ts.open()
         loop.add_reader(self._ts.fileno(), self._fan_out)
         log.info('tuner %d locked on %d Hz', self.adapter, frequency)
+
+    def reserve(self, frequency):
+        """
+        Mark the tuner as being tuned to a multiplex, before the tuning
+        starts, so that concurrent decisions see it as taken.
+
+        :param int frequency: Centre frequency in Hz.
+        """
+        self.frequency = frequency
+        self.state = 'tuning'
+        self.stats = {'signal_dbm': None, 'cnr_db': None}
 
     def _fan_out(self):
         """
@@ -709,8 +725,8 @@ class Manager:
                         and now - stream.last_viewed > idle_timeout):
                     await self._stop_stream(stream)
 
-            if self.config.tuners.prewarm:
-                await self._prewarm()
+        if self.config.tuners.prewarm:
+            await self._prewarm()
         self._publish_state()
 
     async def _restart(self, stream):
@@ -724,7 +740,65 @@ class Manager:
         """
         Keep the neighbours of watched channels live, using only spare
         capacity: a tuner already on the right multiplex, or an idle one.
+
+        Tuning takes seconds, so it happens without the lock: a viewer
+        changing channel meanwhile is not kept waiting. The tuners are
+        reserved first so that such a viewer does not pick them.
+        """
+        async with self._lock:
+            plan, to_tune = await self._plan_prewarm()
+        if not plan:
+            return
+
+        now = time.monotonic()
+        timeout = self.config.tuners.lock_timeout
+        results = await asyncio.gather(*(
+            tuner.tune(channel.frequency, channel.bandwidth, timeout)
+            for tuner, channel in to_tune.items()
+        ), return_exceptions=True)
+
+        async with self._lock:
+            outcomes = zip(to_tune.items(), results, strict=True)
+            for (tuner, channel), result in outcomes:
+                if getattr(result, 'status', None) == 409:
+                    # A viewer took and retuned this tuner meanwhile: it is
+                    # theirs now, leave it alone.
+                    continue
+                if isinstance(result, Exception):
+                    log.info('pre-warm of %s skipped: %s',
+                             channel.number, result)
+                    self._backoff[channel.number] = now + PREWARM_BACKOFF
+                    if not tuner.streams:
+                        tuner.release()
+
+            for channel, tuner in plan:
+                if (channel.number in self.streams
+                        or tuner.state != 'locked'
+                        or tuner.frequency != channel.frequency):
+                    continue
+                stream = Stream(channel, tuner, prewarm=True, thorough=True)
+                try:
+                    await stream.start(
+                        self.config.transcode,
+                        self.mediamtx.rtsp_url(stream.path),
+                    )
+                except StreamError as e:
+                    log.warning('pre-warm of %s failed: %s',
+                                channel.number, e)
+                    continue
+                self.streams[channel.number] = stream
+                log.info('started %s (pre-warm) on tuner %d',
+                         channel.number, tuner.adapter)
+
+    async def _plan_prewarm(self):
+        """
+        Decide which neighbours to pre-warm and on which tuners, stop the
+        pre-warmed streams no longer wanted, and reserve the tuners to tune.
         Must be called with the lock held.
+
+        :return: ``(channel, tuner)`` pairs, and the tuners to tune mapped to
+         the channel that needs them.
+        :rtype: tuple
         """
         now = time.monotonic()
         # Anchors: channels being watched, or just asked for.
@@ -758,6 +832,10 @@ class Manager:
         }
         idle = [t for t in self.tuners if not t.streams and t.state == 'idle']
         to_tune = {}
+        if self._backoff:
+            self._backoff = {
+                n: until for n, until in self._backoff.items() if until > now
+            }
         for number in wanted:
             if number in self.streams:
                 continue
@@ -769,36 +847,8 @@ class Manager:
                 if not idle:
                     continue
                 tuner = idle.pop(0)
+                tuner.reserve(channel.frequency)
                 on_mux[channel.frequency] = tuner
                 to_tune[tuner] = channel
             plan.append((channel, tuner))
-        if not plan:
-            return
-
-        timeout = self.config.tuners.lock_timeout
-        results = await asyncio.gather(*(
-            tuner.tune(channel.frequency, channel.bandwidth, timeout)
-            for tuner, channel in to_tune.items()
-        ), return_exceptions=True)
-        outcomes = zip(to_tune.items(), results, strict=True)
-        for (tuner, channel), result in outcomes:
-            if isinstance(result, Exception):
-                log.info('pre-warm of %s skipped: %s', channel.number, result)
-                self._backoff[channel.number] = now + PREWARM_BACKOFF
-                tuner.release()
-
-        for channel, tuner in plan:
-            if tuner.state != 'locked':
-                continue
-            stream = Stream(channel, tuner, prewarm=True, thorough=True)
-            try:
-                await stream.start(
-                    self.config.transcode,
-                    self.mediamtx.rtsp_url(stream.path),
-                )
-            except StreamError as e:
-                log.warning('pre-warm of %s failed: %s', channel.number, e)
-                continue
-            self.streams[channel.number] = stream
-            log.info('started %s (pre-warm) on tuner %d',
-                     channel.number, tuner.adapter)
+        return plan, to_tune
