@@ -644,10 +644,15 @@ class Manager:
                         ),
                     })
                 await self._stop_stream(other)
-            await tuner.tune(
-                channel.frequency, channel.bandwidth,
-                self.config.tuners.lock_timeout,
-            )
+            try:
+                await tuner.tune(
+                    channel.frequency, channel.bandwidth,
+                    self.config.tuners.lock_timeout,
+                )
+            except StreamError:
+                if not tuner.streams:
+                    tuner.release()
+                raise
 
         stream = Stream(channel, tuner, prewarm=prewarm, thorough=thorough)
         await stream.start(
