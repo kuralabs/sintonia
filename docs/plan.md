@@ -107,8 +107,13 @@ frequency = 521142857
 service_id = 19232
 ```
 
-`sintonia import channels.conf` converts a `dvbv5-scan` result into
-`[[channels]]` entries (one-seg services skipped unless asked).
+`sintonia scan` tunes every RF channel on the free tuners, reads the
+PAT, SDT and NIT, and prints `[[channels]]` entries numbered as TVs do
+(ABNT NBR 15603: the NIT's remote control key is the major number, the
+service number plus one the minor), annotated with signal quality.
+`sintonia import channels.conf` converts a `dvbv5-scan` result instead.
+One-seg services are skipped unless asked. Scanning is CLI only: the UI
+stays for watching.
 `examples/costa-rica.toml` ships the services found during development.
 
 ## UI
@@ -136,7 +141,8 @@ sintonia/
 ├── examples/costa-rica.toml
 ├── src/sintonia/
 │   ├── __init__.py       __version__
-│   ├── __main__.py       serve | import
+│   ├── __main__.py       serve | check | health | scan | import
+│   ├── scanner.py si.py  native channel scan, PSI/SI tables
 │   ├── config.py dvb.py tuners.py transcode.py mediamtx.py app.py
 │   └── data/ui/          index.html, app.js, whep.js, style.css, manifest, icons
 ├── tests/

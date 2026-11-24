@@ -33,17 +33,25 @@ NVIDIA RTX 3060. See [docs/plan.md](docs/plan.md) for the design and
 
 ## Run
 
-1. Scan for channels and create a configuration:
+1. Scan for channels and create a configuration (about two minutes with
+   four tuners; stop Sintonía first if it is running, the scan needs the
+   tuners):
 
    ```sh
-   dvbv5-scan -o channels.conf /usr/share/dvb/isdb-t/br-Brazil
-   docker run --rm -v "$PWD:/work" -w /work ghcr.io/kuralabs/sintonia \
-       import channels.conf > config.toml
+   docker run --rm --device /dev/dvb \
+       --group-add "$(getent group video | cut -d: -f3)" \
+       ghcr.io/kuralabs/sintonia scan > config.toml
    ```
 
-   Review `config.toml`: channel numbers are guessed from the service names
-   (or the RF channel), and the list order is the Up/Down order. See
-   [examples/costa-rica.toml](examples/costa-rica.toml) for every option.
+   Channels are numbered as on a TV, and each one is annotated with its
+   RF channel and signal quality; channels marked weak may stutter. The
+   list order is the Up/Down order. Add the other sections from
+   [examples/costa-rica.toml](examples/costa-rica.toml) as needed, such as
+   `[transcode]` to choose the GPU. `scan --help` lists the options, such as
+   `--channels 14-51` to scan fewer channels.
+
+   Alternatively, convert an existing `dvbv5-scan` channel file with
+   `sintonia import channels.conf`.
 
 2. Start it:
 
