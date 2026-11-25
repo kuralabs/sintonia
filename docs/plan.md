@@ -6,9 +6,18 @@ tuners and a GPU. Open `http://host:port` and the last channel you watched
 plays on the left, with a collapsible pane on the right holding the
 channel list. Up/Down changes channel.
 
-Scope: LAN only, no authentication. Clients: Chrome desktop and Chrome on
-Android. Developed on a TBS6814 quad ISDB-Tb card (Costa Rica) with an
+Scope: LAN only, no authentication; remote access (VPN, internet) is out of
+scope. Clients: Chrome desktop and Chrome on Android. Developed on a TBS6814 quad ISDB-Tb card (Costa Rica) with an
 NVIDIA RTX 3060, but nothing in the design is specific to that card.
+
+## Status (2026-11-25)
+
+In daily use at home: deployed with `examples/sintonia.sh` behind NGINX
+with HTTPS on the LAN, watched on desktop and on Android (installed to the
+home screen), with two viewers on different channels at once. Phases 0-5
+are done, plus the native channel scan and the deployment documentation.
+Releases are not tagged yet: the first release will be 1.0.0, after a few
+more improvements. The image is published as `latest` from `main`.
 
 ## Measured facts that drive the design
 
@@ -27,7 +36,11 @@ NVIDIA RTX 3060, but nothing in the design is specific to that card.
   that must use GPU 1 gets `--gpus all` and selects the GPU itself
   (`-hwaccel_device N`, `-gpu N`); verified that the work then lands on GPU
   1 only.
-- After lock, the demodulator needs ~1-1.5 s before packets are clean.
+- After lock, the demodulator needs 1-4 s before packets are clean.
+- NVDEC can run out of surfaces and fall back to software decoding in the
+  middle of a stream, which breaks a CUDA-only filter chain. The filter
+  chain starts with `hwupload` on a named CUDA device: it passes CUDA
+  frames through and uploads software ones, so a fallback is harmless.
 
 ## Architecture
 
@@ -129,7 +142,8 @@ stays for watching.
 - On the video: a translucent fullscreen icon that fades after ~2 s of no
   mouse movement; a TV-style banner (`6.1 Canal 6 HD`) with a spinner while
   tuning; "No signal" when lock is lost.
-- Keys: Up/Down channel, F fullscreen, P pane, Esc exit fullscreen.
+- Keys: Up/Down channel, F fullscreen, P pane, M mute, I signal details,
+  Esc exit fullscreen.
 - Last channel per browser (`localStorage`); first channel on first visit.
 - Android: swipe up/down on the video to change channel, landscape lock in
   fullscreen, Screen Wake Lock while playing, muted autoplay until the
@@ -171,8 +185,8 @@ sintonia/
       :param int adapter: DVB adapter number, as in /dev/dvb/adapterN.
       :param int frequency: Centre frequency in Hz.
 
-      :return: The running dvbv5-zap process.
-      :rtype: asyncio.subprocess.Process
+      :return: The tuned frontend.
+      :rtype: Frontend
 
       :raises TuneError: If the frontend does not lock within the timeout.
       """
@@ -215,12 +229,14 @@ goes through NGINX; WebRTC media reaches clients directly on UDP 8189.
 
 | # | Deliverable | Done when |
 |---|---|---|
-| 0 | Spike: zap → ffmpeg (GPU) → MediaMTX → bare WHEP page, by hand | **Done** except the Android check: see `docs/spike.md` |
+| 0 | Spike: zap → ffmpeg (GPU) → MediaMTX → bare WHEP page, by hand | **Done**: see `docs/spike.md` |
 | 1 | Skeleton | **Done** |
 | 2 | Backend core | **Done** |
-| 3 | UI | **Done**; Android to be tried on a real phone |
+| 3 | UI | **Done**, Android included |
 | 4 | Tuner pool | **Done** |
-| 5 | Container + release | **Done** except tagging v0.1.0 |
+| 5 | Container + release | **Done**; first tag will be 1.0.0 |
+| 6 | Native channel scan (`sintonia scan`) | **Done** |
+| 7 | Deployment: script, NGINX example, README | **Done** |
 | Later | — | EIT "now playing"; audio track choice in the UI; logos |
 
 ## Measured on hardware (end-to-end, container, headless Chrome)
@@ -229,10 +245,18 @@ goes through NGINX; WebRTC media reaches clients directly on UDP 8189.
 - Up/Down onto a pre-warmed neighbour: 1.0-2.5 s, weak channels included.
 - After a lock the demodulator needs 1-4 s before packets are clean; the
   stream is only handed to ffmpeg once it is (see `streams.Tuner`).
+- Two viewers on different channels at once, desktop and Android, over
+  HTTPS through NGINX: smooth.
 
 ## Open items
 
-- Teletica 7.1 is not received yet; its physical channel is unknown.
+- Reception: the TV in the same house receives four multiplexes the
+  TBS6814 does not (Canal 1, 8, 11 and 12), and some received ones are
+  weak or drop out (Canal 6, Canal 9, OPA). Switching the other TV on
+  degrades the signal, and a short thin cable between the splitter and
+  the card is suspect. Swap it, then compare the signal details and scan
+  again.
+- Improvements before the 1.0.0 release.
 - GPU 1 is shared with another GPU workload on the host; NVENC/NVDEC are
   separate engines, but a very large job could exhaust VRAM (~1 GB is
   enough for four streams).

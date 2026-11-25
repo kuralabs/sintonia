@@ -27,6 +27,9 @@
 #   SINTONIA_NAME     Container name (sintonia).
 #   SINTONIA_IMAGE    Image (ghcr.io/kuralabs/sintonia:latest).
 #   SINTONIA_CONFIG   Configuration file (config.toml next to this script).
+#   SINTONIA_HWACCEL  GPU access to give the container, matching
+#                     transcode.hwaccel: nvidia (default), vaapi, qsv or
+#                     none.
 
 set -o errexit
 set -o nounset
@@ -37,11 +40,30 @@ NAME="${SINTONIA_NAME:-sintonia}"
 IMAGE="${SINTONIA_IMAGE:-ghcr.io/kuralabs/sintonia:latest}"
 CONFIG="${SINTONIA_CONFIG:-${HERE}/config.toml}"
 SCAN="$(dirname "${CONFIG}")/config.scan.toml"
+HWACCEL="${SINTONIA_HWACCEL:-nvidia}"
 
 # Seconds to wait for the server to report healthy.
 HEALTH_TIMEOUT=90
 
 VIDEO_GID="$(getent group video | cut -d: -f3)"
+
+case "${HWACCEL}" in
+    nvidia)
+        # All GPUs: choose one with transcode.gpu (see the README).
+        GPU_ARGS=(--gpus all)
+        ;;
+    vaapi | qsv)
+        GPU_ARGS=(--device /dev/dri
+            --group-add "$(getent group render | cut -d: -f3)")
+        ;;
+    none)
+        GPU_ARGS=()
+        ;;
+    *)
+        echo "ERROR: SINTONIA_HWACCEL must be nvidia, vaapi, qsv or none" >&2
+        exit 1
+        ;;
+esac
 
 die() {
     echo "ERROR: $*" >&2
@@ -76,7 +98,7 @@ wait_healthy() {
             docker logs --tail 50 "${NAME}"
             echo
             die "The server did not start. Check the set-up with:" \
-                "docker run --rm --gpus all --device /dev/dvb" \
+                "docker run --rm ${GPU_ARGS[*]} --device /dev/dvb" \
                 "--group-add ${VIDEO_GID}" \
                 "-v ${CONFIG}:/config/config.toml:ro ${IMAGE} check"
         fi
@@ -102,7 +124,7 @@ deploy() {
         --detach \
         --name "${NAME}" \
         --restart unless-stopped \
-        --gpus all \
+        "${GPU_ARGS[@]}" \
         --device /dev/dvb \
         --group-add "${VIDEO_GID}" \
         --network host \
@@ -155,7 +177,7 @@ case "${1:-deploy}" in
         scan "$@"
         ;;
     -h | --help | help)
-        sed --quiet '17,29s/^# \{0,1\}//p' "$0"
+        sed --quiet '17,32s/^# \{0,1\}//p' "$0"
         ;;
     *)
         die "Unknown command: $1 (try $0 --help)"
