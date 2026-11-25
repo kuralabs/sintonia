@@ -11,11 +11,11 @@ Open the page and the last channel you watched starts playing, the pane on
 the right lists the channels, and Up/Down changes channel.
 
 <p align="center">
-  <img src="docs/images/desktop.webp" alt="Sintonía in a desktop browser:
+  <img src="https://raw.githubusercontent.com/kuralabs/sintonia/main/docs/images/desktop.webp" alt="Sintonía in a desktop browser:
     the video on the left with the channel banner, the channel list on
     the right" width="74%">
   &nbsp;
-  <img src="docs/images/phone.webp" alt="Sintonía on a phone: the video on
+  <img src="https://raw.githubusercontent.com/kuralabs/sintonia/main/docs/images/phone.webp" alt="Sintonía on a phone: the video on
     top, the channel list below" width="19%">
 </p>
 
@@ -34,7 +34,7 @@ the right lists the channels, and Up/Down changes channel.
 Sintonía supports **ISDB-T** (ISDB-Tb, used across much of Latin America)
 on the 6 MHz channel plan. It is built and tested with a TBS6814 quad tuner
 and an NVIDIA RTX 3060 in Costa Rica; VAAPI and QSV transcoding are
-supported but untested. See [docs/plan.md](docs/plan.md) for the design.
+supported but untested. See [docs/plan.md](https://github.com/kuralabs/sintonia/blob/main/docs/plan.md) for the design.
 
 ## Requirements
 
@@ -54,7 +54,7 @@ supported but untested. See [docs/plan.md](docs/plan.md) for the design.
 
 ## Quick start
 
-[examples/sintonia.sh](examples/sintonia.sh) runs everything with Docker
+[examples/sintonia.sh](https://github.com/kuralabs/sintonia/blob/main/examples/sintonia.sh) runs everything with Docker
 and keeps the configuration next to it.
 
 1. Get the script into a directory of its own:
@@ -112,7 +112,7 @@ hand.
 ## Configuration
 
 Everything except `[[channels]]` is optional.
-[examples/costa-rica.toml](examples/costa-rica.toml) is a complete
+[examples/costa-rica.toml](https://github.com/kuralabs/sintonia/blob/main/examples/costa-rica.toml) is a complete
 example.
 
 | Setting | Default | |
@@ -172,9 +172,30 @@ when a container is given a single GPU other than GPU 0
 GPU to Jellyfin and another to Sintonía works this way: pin Jellyfin to
 GPU 0 (`--gpus '"device=0"'` works) and set `gpu = 1` here.
 
+## Without Docker
+
+Sintonía is also on PyPI, for Python 3.12 or newer:
+
+```sh
+pipx install sintonia        # or: uv tool install sintonia
+```
+
+Scanning and importing need nothing else: `sintonia scan > config.toml`,
+as a user in the `video` group. The server also needs
+[jellyfin-ffmpeg](https://jellyfin.org/docs/general/installation/linux/)
+8.1 or newer and [MediaMTX](https://github.com/bluenviron/mediamtx/releases)
+(the image has v1.21.3) installed on the host; point `transcode.ffmpeg`
+and `mediamtx.binary` at them if they are not at
+`/usr/lib/jellyfin-ffmpeg/ffmpeg` and on the `PATH`. Then:
+
+```sh
+sintonia check -c config.toml
+sintonia serve -c config.toml
+```
+
 ## HTTPS with NGINX
 
-[examples/nginx.conf](examples/nginx.conf) is a complete site:
+[examples/nginx.conf](https://github.com/kuralabs/sintonia/blob/main/examples/nginx.conf) is a complete site:
 
 - Bind Sintonía to the loopback interface, so only NGINX reaches it:
   `server.host = '127.0.0.1'`, and the port NGINX proxies to.
@@ -232,4 +253,4 @@ to 79 characters, single quotes, Sphinx-style docstrings.
 
 Copyright (C) 2026 KuraLabs S.R.L.
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
+Licensed under the Apache License, Version 2.0. See [LICENSE](https://github.com/kuralabs/sintonia/blob/main/LICENSE).

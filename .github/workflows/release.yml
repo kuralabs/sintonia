@@ -1,0 +1,102 @@
+name: release
+
+# Publish a release to PyPI and GitHub when a version tag (v1.2.3) is
+# pushed. The container image is published by image.yml from the same tag.
+# A manual run builds and tests the distributions without publishing.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: |
+          pip install build twine
+          python -m build
+          twine check --strict dist/*
+
+      - name: Check the version against the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          ls dist
+          [ -f "dist/sintonia-$version.tar.gz" ] \
+            || { echo "no sdist for $version: bump __version__"; exit 1; }
+          [ -f "dist/sintonia-$version-py3-none-any.whl" ] \
+            || { echo "no wheel for $version: bump __version__"; exit 1; }
+          [ "$(ls dist | wc -l)" -eq 2 ] \
+            || { echo "expected one sdist and one wheel"; exit 1; }
+
+      # The suite runs against the installed wheel, not the checkout, so a
+      # file missing from the wheel (the UI, for one) fails here.
+      - name: Test the wheel
+        run: |
+          python -m venv /tmp/wheel
+          /tmp/wheel/bin/pip install dist/*.whl pytest pytest-asyncio
+          cd tests
+          /tmp/wheel/bin/python -c "import sintonia, sys; \
+            sys.exit('/tmp/wheel/' not in sintonia.__file__)"
+          /tmp/wheel/bin/python -m pytest -W error -c ../pyproject.toml \
+            --rootdir .. -p no:cacheprovider
+          /tmp/wheel/bin/sintonia --version
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist
+
+  # Trusted Publishing (OIDC): PyPI accepts uploads from this workflow in
+  # the `pypi` environment, which only deploys `v*` tags and waits for a
+  # reviewer's approval. No secret is stored.
+  pypi:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/sintonia/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github:
+    needs: pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Sintonía $version" \
+            --generate-notes \
+            --notes "Container image: \`ghcr.io/kuralabs/sintonia:$version\`
+          Python package: \`pip install sintonia==$version\`"

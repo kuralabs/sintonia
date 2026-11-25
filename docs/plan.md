@@ -205,6 +205,11 @@ sintonia/
 - `image.yml`: build and push `ghcr.io/kuralabs/sintonia` on `main`
   (`latest`, `sha-…`) and on tags (`X.Y.Z`, `X.Y`), plus a **weekly
   rebuild** to pick up base image and jellyfin-ffmpeg updates.
+- `release.yml`, on `v*` tags: build the sdist and wheel, check that
+  they match the tag, run the test suite against the installed wheel,
+  publish to PyPI with Trusted Publishing (the `pypi` environment waits for
+  approval), then create the GitHub release with the files and generated
+  notes. A manual run builds and tests only.
 - Dependabot for Actions, pip and the base image; MediaMTX bumps by hand
   (checksum).
 
