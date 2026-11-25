@@ -16,4 +16,4 @@
 Sintonía: simple, watch-TV-focused web app for live over-the-air TV.
 """
 
-__version__ = '0.1.0.dev0'
+__version__ = '1.0.0'
