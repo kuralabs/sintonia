@@ -143,7 +143,7 @@ sintonia/
 ├── LICENSE               Apache-2.0
 ├── Dockerfile
 ├── docs/plan.md
-├── examples/costa-rica.toml
+├── examples/costa-rica.toml, nginx.conf, sintonia.sh
 ├── src/sintonia/
 │   ├── __init__.py       __version__
 │   ├── __main__.py       serve | check | health | scan | import
@@ -198,12 +198,18 @@ Run (GPU 1 for sintonia; Jellyfin can be pinned to GPU 0 with
 `--gpus '"device=0"'`, which works):
 
 ```sh
-docker run -d --name sintonia --restart unless-stopped --init \
-  --gpus all -e NVIDIA_DRIVER_CAPABILITIES=video,compute,utility \
-  --device /dev/dvb --group-add "$(getent group video | cut -d: -f3)" \
-  --network host -v /srv/sintonia/config.toml:/config/config.toml:ro \
+docker run -d --name sintonia --restart unless-stopped \
+  --gpus all --device /dev/dvb \
+  --group-add "$(getent group video | cut -d: -f3)" \
+  --network host -v "$PWD/config.toml:/config/config.toml:ro" \
   ghcr.io/kuralabs/sintonia:latest
 ```
+
+`examples/sintonia.sh` wraps this (pull, restart, wait for health, and a
+`scan` mode that pauses the server). In production Sintonía is bound to
+127.0.0.1 behind NGINX with HTTPS (`examples/nginx.conf`): the screen wake
+lock and installing to the home screen need a secure origin. Only HTTP
+goes through NGINX; WebRTC media reaches clients directly on UDP 8189.
 
 ## Phases
 

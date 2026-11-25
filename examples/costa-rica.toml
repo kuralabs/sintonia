@@ -2,10 +2,8 @@
 # Metropolitana, as received during development in November 2026.
 #
 # Everything except [[channels]] is optional; the values shown are the
-# defaults unless noted. Generate your own channel list with:
-#
-#   dvbv5-scan -o channels.conf scan-table.conf
-#   sintonia import channels.conf
+# defaults unless noted. Generate your own channel list with
+# `sintonia scan` (or import a dvbv5-scan file with `sintonia import`).
 #
 # Channel numbers follow the virtual numbering a TV shows: the major
 # number broadcast by the network, and the service's index as the minor

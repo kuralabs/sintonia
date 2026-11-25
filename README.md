@@ -53,7 +53,7 @@ NVIDIA RTX 3060. See [docs/plan.md](docs/plan.md) for the design and
    Alternatively, convert an existing `dvbv5-scan` channel file with
    `sintonia import channels.conf`.
 
-2. Start it:
+2. Start it, from the directory holding `config.toml`:
 
    ```sh
    docker run -d --name sintonia --restart unless-stopped \
@@ -61,17 +61,43 @@ NVIDIA RTX 3060. See [docs/plan.md](docs/plan.md) for the design and
        --device /dev/dvb \
        --group-add "$(getent group video | cut -d: -f3)" \
        --network host \
-       -v /srv/sintonia/config.toml:/config/config.toml:ro \
+       -v "$PWD/config.toml:/config/config.toml:ro" \
        ghcr.io/kuralabs/sintonia:latest
    ```
 
    `--network host` lets WebRTC reach clients directly. Without it, publish
    `8080/tcp` and `8189/udp` and list the host's LAN address in
-   `mediamtx.webrtc_hosts`.
+   `mediamtx.webrtc_hosts`. With it, Sintonía's ports are the host's: if
+   something else already uses 8080, set `server.port`. The container runs
+   as an unprivileged user, so `config.toml` must be readable by others.
 
 3. Check the set-up at any time with `docker exec sintonia sintonia check`.
    The server runs the same checks at start-up and refuses to start, with
    a hint, if the tuners, ffmpeg, the GPU or MediaMTX are not usable.
+
+[examples/sintonia.sh](examples/sintonia.sh) does all this: put it next to
+`config.toml` and run `./sintonia.sh` to pull the image and (re)start the
+server, waiting until it is healthy, or `./sintonia.sh scan` to scan into
+`config.scan.toml` while the server is paused.
+
+## Deploy behind NGINX
+
+Serve Sintonía over HTTPS: phones only keep the screen on while watching,
+and only offer to install Sintonía to the home screen, on HTTPS pages.
+[examples/nginx.conf](examples/nginx.conf) is a complete site:
+
+- Bind Sintonía to the loopback interface, so only NGINX reaches it:
+  `server.host = '127.0.0.1'`, and the port NGINX proxies to.
+- NGINX carries the page, the API, the state updates (Server-Sent Events,
+  unbuffered) and the WebRTC signalling. The video does not pass through
+  it: browsers receive it from Sintonía directly over UDP port 8189, which
+  must be reachable from the clients.
+- Sintonía has no login, and every viewer can tie up a tuner. Keep it on
+  your LAN or VPN, or restrict it with NGINX's `allow` and `deny`.
+
+The certificate can come from Let's Encrypt even when the name only
+resolves on your LAN (for example, a rewrite in your LAN's DNS server):
+use the DNS challenge, which needs no inbound connection.
 
 ### NVIDIA GPUs
 
